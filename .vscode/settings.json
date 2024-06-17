@@ -1,5 +1,6 @@
 {
   "conventionalCommits.scopes": [
-    "Mod"
+    "Mod",
+    "Proficiency"
   ]
 }

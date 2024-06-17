@@ -7,25 +7,29 @@ using Vintagestory.API.Util;
 
 namespace ProficiencySurge;
 
+public class PlayerProficiency : Dictionary<string, ProficiencyData>
+{
+}
+
+#pragma warning disable CA2211 // Non-constant fields should not be visible
 public class Instance : ModSystem
 {
-#pragma warning disable CA2211 // Non-constant fields should not be visible
+
     public static ICoreClientAPI ClientAPI;
-#pragma warning restore CA2211 // Non-constant fields should not be visible
     public static ICoreServerAPI ServerAPI;
 
     public override void Start(ICoreAPI api)
     {
         if (api is ICoreClientAPI clientAPI)
         {
-            Debug.Log("Initializing Client API");
+            Debug.Log("Initializing Client API...");
             ClientAPI = clientAPI;
             Utils.InitClientApi(ClientAPI);
             ShovelSkill.InitClientApi(ClientAPI);
         }
         if (api is ICoreServerAPI serverAPI)
         {
-            Debug.Log("Initializing Server API");
+            Debug.Log("Initializing Server API...");
             ServerAPI = serverAPI;
 
             Utils.InitServerApi(ServerAPI);
@@ -35,7 +39,7 @@ public class Instance : ModSystem
         }
 
         if (ServerAPI != null && ClientAPI != null)
-            Debug.Log("Instance initialized");
+            Debug.Log("Instance initialized!");
     }
 
     public static void BreakBlock(
@@ -52,10 +56,61 @@ public class Instance : ModSystem
     }
 }
 
+
+public class ProficiencyData
+{
+    float exp = 0;
+    float goal = 1;
+    int current = 0;
+
+    public float Exp { get => exp; set => exp = value; }
+    public float Goal { get => goal; set => goal = value; }
+    public int Current { get => current; set => current = value; }
+
+
+    public int GetGoal()
+    {
+        Debug.Log($"Calculating goal for current level {current}...");
+        float dividend = (float)Math.Pow(current + 1, 1.5);
+        return (int)((dividend / 2) + 0.5);
+    }
+
+    public void GainExp(float amount)
+    {
+        Debug.Log("Calculating EXP gain...");
+        exp += amount;
+        while (exp >= goal)
+        {
+            exp -= goal;
+
+            Debug.Log("Goal reached! Reseting EXP to remaining points...");
+
+
+            current++;
+            goal = GetGoal();
+
+            Debug.Log("New goal: " + goal);
+        }
+    }
+
+
+    public ProficiencyData(float exp = 0, int current = 0, float? goal = null)
+    {
+        this.current = current;
+
+        if (goal != null) { this.goal = (float)goal; }
+        else { this.goal = GetGoal(); }
+        GainExp(exp);
+
+        Debug.Log($"Creating new shovel data. Exp: {exp}, Current: {current}, Goal: {goal}");
+    }
+
+}
+
 public class Utils
 {
+
     public static ICoreClientAPI ClientAPI;
-#pragma warning restore CA2211 // Non-constant fields should not be visible
     public static ICoreServerAPI ServerAPI;
 
     public static void InitServerApi(ICoreServerAPI api)
@@ -145,24 +200,25 @@ public class Utils
         return data;
     }
 
-    public static Dictionary<string, int> GetSavedExperience(IServerPlayer player)
+    public static PlayerProficiency GetSavedExperience(IServerPlayer player)
     {
         string playerSkillsKey = $"Skill_{player.PlayerUID}";
-        Dictionary<string, int> playerSkills = GetData(
+        PlayerProficiency playerSkills = (PlayerProficiency)GetData(
             playerSkillsKey,
-            new Dictionary<string, int>()
+            new Dictionary<string, ProficiencyData>()
         );
 
-        Debug.Log("Retrieved player skills");
+        Debug.Log("Retrieved all player skills");
         return playerSkills;
     }
 
-    public static void SaveExperience(IServerPlayer player, string skill, int value)
+    public static void SaveExperience(IServerPlayer player, string skill, ProficiencyData proficiencyData)
     {
-        Debug.Log($"Saving experience for {player.Entity.GetName()}: {skill} => {value}");
+        Debug.Log($"Saving experience for {player.Entity.GetName()}: {skill} => Current EXP: {proficiencyData.Exp}, Current level: {proficiencyData.Current}, Goal: {proficiencyData.Goal}");
         string playerSkillsKey = $"Skill_{player.PlayerUID}";
-        Dictionary<string, int> playerSkills = GetSavedExperience(player);
-        playerSkills[skill] = value;
+        PlayerProficiency playerSkills = GetSavedExperience(player);
+
+        playerSkills[skill] = proficiencyData;
 
         StoreData(playerSkillsKey, playerSkills);
     }
@@ -170,10 +226,10 @@ public class Utils
 
 public class ShovelSkill
 {
-#pragma warning disable CA2211 // Non-constant fields should not be visible
+
     public static ICoreClientAPI ClientAPI;
-#pragma warning restore CA2211 // Non-constant fields should not be visible
     public static ICoreServerAPI ServerAPI;
+
 
     public static void InitServerApi(ICoreServerAPI api)
     {
@@ -206,7 +262,7 @@ public class ShovelSkill
         return true;
     }
 
-    public static int GetXP(Block block)
+    public static float GetXP(Block block)
     {
         Debug.Log("Calculating xp for shovel");
         if (block is null)
@@ -235,20 +291,23 @@ public class ShovelSkill
         {
             return;
         }
-        int xp = GetXP(block);
+        float xp = GetXP(block);
         Debug.Log($"Gained {xp} xp for shovel");
 
-        Dictionary<string, int> playerSkills =
-            Utils.GetSavedExperience(player) ?? new Dictionary<string, int>();
+        Dictionary<string, ProficiencyData> playerSkills = Utils.GetSavedExperience(player);
 
-        bool hasKey = playerSkills.TryGetValue("Shovel", out int oldXP);
+
+        bool hasKey = playerSkills.TryGetValue("Shovel", out ProficiencyData Data);
 
         if (!hasKey)
         {
-            Debug.Log("Creating new key. Setting xp to 0");
-            oldXP = 0;
+            Debug.Log("Creating new shovel data. Setting xp to 0");
+            Data = new ProficiencyData(0, 0, 0);
         }
-        Utils.SaveExperience(player, "Shovel", oldXP + xp);
+
+        Data.GainExp(xp);
+
+        Utils.SaveExperience(player, "Shovel", Data);
     }
 }
 
@@ -275,3 +334,4 @@ public class Debug
         loggerForNonTerminalUsers?.Log(EnumLogType.Notification, $"[ProficiencySurge] {message}");
     }
 }
+#pragma warning restore CA2211 // Non-constant fields should not be visible
