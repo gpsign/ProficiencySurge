@@ -1,0 +1,13 @@
+{
+    "type": "code",
+    "modid": "proficiencysurge",
+    "name": "ProficiencySurge",
+    "authors": [
+        "gabreusi"
+    ],
+    "description": "Gain experience and improve with action!",
+    "version": "0.0.1",
+    "dependencies": {
+        "game": ""
+    }
+}
